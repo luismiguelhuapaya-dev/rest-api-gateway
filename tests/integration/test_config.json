@@ -1,0 +1,15 @@
+{
+    "listen_address": "0.0.0.0",
+    "listen_port": 8080,
+    "unix_socket_path": "/tmp/gateway_test.sock",
+    "max_connections": 256,
+    "read_timeout_ms": 10000,
+    "write_timeout_ms": 10000,
+    "max_request_body_size": 1048576,
+    "access_token_expiry_seconds": 300,
+    "refresh_token_expiry_seconds": 86400,
+    "log_level": "debug",
+    "log_file": "/tmp/gateway_test.log",
+    "log_to_stdout": true,
+    "aes_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+}
