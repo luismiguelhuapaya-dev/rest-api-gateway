@@ -5,10 +5,25 @@
 # Zero-touch installer for Ubuntu/Debian.
 #
 # Usage:
-#   sudo ./install.sh <TARGET_DIR>
+#   sudo ./install.sh <TARGET_DIR> [--aes-key <HEX_KEY>]
+#   sudo ./install.sh <TARGET_DIR> [--aes-key-file <PATH>]
 #
-# Example:
+# AES Key Options (pick one):
+#   (none)              Generate a new random key (first install)
+#   --aes-key <HEX>     Import a 64-char hex key (from another server)
+#   --aes-key-file <F>  Import key from a file (reads first line)
+#   GATEWAY_AES_KEY=... Pass via environment variable
+#
+# Examples:
+#   # New standalone server (generates fresh key):
 #   sudo ./install.sh /opt/rest-api-gateway
+#
+#   # Join an existing cluster (import key from first server):
+#   sudo ./install.sh /opt/rest-api-gateway --aes-key 4a7f...c3e1
+#
+#   # Import key from a file copied from another server:
+#   scp server1:/opt/rest-api-gateway/etc/gateway.env /tmp/gateway.env
+#   sudo ./install.sh /opt/rest-api-gateway --aes-key-file /tmp/gateway.env
 #
 # What this does (fully automated, no prompts):
 #   1. Installs build prerequisites via apt (gcc-12, cmake, etc.)
@@ -16,10 +31,11 @@
 #   3. Creates a 'gateway' service user
 #   4. Builds the application from source
 #   5. Installs binary, config, docs, systemd service, logrotate
-#   6. Generates a random AES-256 key (if one doesn't already exist)
+#   6. Sets AES-256 key (generates, imports, or preserves existing)
 #   7. Starts and enables the service
 #
-# Idempotent — safe to re-run. Preserves existing config and AES key.
+# Idempotent — safe to re-run. Preserves existing config and AES key
+# unless --aes-key or --aes-key-file is explicitly provided.
 # Target OS: Ubuntu 20.04+ / Debian 11+
 ###############################################################################
 
@@ -39,17 +55,51 @@ step() { echo -e "\n${BOLD}${CYAN}[$1]${NC} $2"; }
 die() { err "$1"; exit 1; }
 
 # ── Argument handling ───────────────────────────────────────────────────────
+IMPORT_AES_KEY=""
+IMPORT_AES_KEY_FILE=""
+
+show_usage() {
+    echo "Usage: sudo $0 <TARGET_DIR> [OPTIONS]"
+    echo ""
+    echo "  TARGET_DIR                Where to install (e.g. /opt/rest-api-gateway)"
+    echo ""
+    echo "Options:"
+    echo "  --aes-key <HEX>          Import a 64-char hex AES-256 key"
+    echo "  --aes-key-file <PATH>    Import key from a file (reads GATEWAY_AES_KEY=... line)"
+    echo ""
+    echo "Examples:"
+    echo "  sudo $0 /opt/rest-api-gateway                              # new server, generate key"
+    echo "  sudo $0 /opt/rest-api-gateway --aes-key 4a7f...c3e1        # join cluster, import key"
+    echo "  sudo $0 /opt/rest-api-gateway --aes-key-file /tmp/key.env  # import from file"
+}
+
 if [[ $# -lt 1 ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
-    echo "Usage: sudo $0 <TARGET_DIR>"
-    echo ""
-    echo "  TARGET_DIR   Where to install (e.g. /opt/rest-api-gateway)"
-    echo ""
-    echo "Example:"
-    echo "  sudo $0 /opt/rest-api-gateway"
+    show_usage
     exit 0
 fi
 
 TARGET_DIR="$1"
+shift
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --aes-key)
+            [[ $# -ge 2 ]] || { err "--aes-key requires a value"; exit 1; }
+            IMPORT_AES_KEY="$2"
+            shift 2
+            ;;
+        --aes-key-file)
+            [[ $# -ge 2 ]] || { err "--aes-key-file requires a path"; exit 1; }
+            IMPORT_AES_KEY_FILE="$2"
+            shift 2
+            ;;
+        *)
+            err "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+    esac
+done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_USER="gateway"
 SERVICE_GROUP="gateway"
@@ -247,14 +297,55 @@ else
     warn "Config already exists — preserved"
 fi
 
-# --- AES-256 key ---
+# --- AES-256 key (3 modes: import via CLI, import via file, or generate) ---
 ENV_FILE="${TARGET_DIR}/etc/gateway.env"
-if [[ -f "${ENV_FILE}" ]] && grep -q "GATEWAY_AES_KEY=.\+" "${ENV_FILE}" 2>/dev/null; then
+AES_KEY=""
+
+if [[ -n "${IMPORT_AES_KEY}" ]]; then
+    # Mode 1: Imported via --aes-key
+    AES_KEY="${IMPORT_AES_KEY}"
+    # Validate: must be exactly 64 hex characters (32 bytes)
+    if [[ ! "${AES_KEY}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+        die "Invalid AES key: must be exactly 64 hex characters (32 bytes). Got ${#AES_KEY} characters."
+    fi
+    echo "GATEWAY_AES_KEY=${AES_KEY}" > "${ENV_FILE}"
+    ok "AES-256 key imported via --aes-key"
+
+elif [[ -n "${IMPORT_AES_KEY_FILE}" ]]; then
+    # Mode 2: Imported via --aes-key-file
+    [[ -f "${IMPORT_AES_KEY_FILE}" ]] || die "Key file not found: ${IMPORT_AES_KEY_FILE}"
+    # Try to extract GATEWAY_AES_KEY=... line first, fall back to raw first line
+    if grep -q "GATEWAY_AES_KEY=" "${IMPORT_AES_KEY_FILE}" 2>/dev/null; then
+        AES_KEY="$(grep 'GATEWAY_AES_KEY=' "${IMPORT_AES_KEY_FILE}" | head -1 | cut -d= -f2 | tr -d '[:space:]')"
+    else
+        AES_KEY="$(head -1 "${IMPORT_AES_KEY_FILE}" | tr -d '[:space:]')"
+    fi
+    if [[ ! "${AES_KEY}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+        die "Invalid AES key from file: must be exactly 64 hex characters (32 bytes)."
+    fi
+    echo "GATEWAY_AES_KEY=${AES_KEY}" > "${ENV_FILE}"
+    ok "AES-256 key imported from ${IMPORT_AES_KEY_FILE}"
+
+elif [[ -n "${GATEWAY_AES_KEY:-}" ]]; then
+    # Mode 3: Passed via environment variable
+    AES_KEY="${GATEWAY_AES_KEY}"
+    if [[ ! "${AES_KEY}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+        die "Invalid GATEWAY_AES_KEY env var: must be exactly 64 hex characters (32 bytes)."
+    fi
+    echo "GATEWAY_AES_KEY=${AES_KEY}" > "${ENV_FILE}"
+    ok "AES-256 key imported from GATEWAY_AES_KEY environment variable"
+
+elif [[ -f "${ENV_FILE}" ]] && grep -q "GATEWAY_AES_KEY=.\+" "${ENV_FILE}" 2>/dev/null; then
+    # Existing key on disk — preserve it
     ok "AES-256 key already exists — preserved"
+
 else
+    # Mode 4: Generate new key
     AES_KEY="$(head -c 32 /dev/urandom | xxd -p -c 64)"
     echo "GATEWAY_AES_KEY=${AES_KEY}" > "${ENV_FILE}"
-    ok "Generated AES-256 key: ${ENV_FILE}"
+    ok "Generated new AES-256 key"
+    info "To deploy additional instances with the same key, copy ${ENV_FILE}"
+    info "or re-run with: --aes-key ${AES_KEY}"
 fi
 
 # --- systemd service ---
