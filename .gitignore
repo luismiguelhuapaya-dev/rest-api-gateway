@@ -32,8 +32,11 @@ compile_commands.json
 
 # Node artifacts
 node_modules/
-*.js
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
