@@ -1,0 +1,16 @@
+/opt/rest-api-gateway/logs/*.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 0640 gateway gateway
+    sharedscripts
+    postrotate
+        # Send SIGHUP to the gateway to reopen log files
+        if [ -f /opt/rest-api-gateway/run/gateway.pid ]; then
+            kill -HUP $(cat /opt/rest-api-gateway/run/gateway.pid) 2>/dev/null || true
+        fi
+    endscript
+}

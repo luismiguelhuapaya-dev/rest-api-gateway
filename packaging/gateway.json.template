@@ -1,0 +1,34 @@
+{
+    "_comment_listen": "Network interface to bind to. Use 0.0.0.0 for all interfaces, 127.0.0.1 for localhost only.",
+    "listen_address": "0.0.0.0",
+
+    "_comment_port": "TCP port for the HTTP listener. Ensure this port is not in use by another service.",
+    "listen_port": 8080,
+
+    "_comment_unix_socket": "Path for the Unix domain socket used by backend services to register and communicate.",
+    "unix_socket_path": "/var/run/rest-api-gateway/gateway.sock",
+
+    "_comment_max_connections": "Maximum number of concurrent client connections. Adjust based on expected load and system limits.",
+    "max_connections": 10000,
+
+    "_comment_max_header_size": "Maximum allowed size (in bytes) for HTTP request headers.",
+    "max_header_size": 8192,
+
+    "_comment_max_body_size": "Maximum allowed size (in bytes) for HTTP request bodies. Default is 1 MB.",
+    "max_body_size": 1048576,
+
+    "_comment_access_token_expiry": "Lifetime (in seconds) of access tokens issued by the gateway. Default is 5 minutes.",
+    "access_token_expiry": 300,
+
+    "_comment_refresh_token_expiry": "Lifetime (in seconds) of refresh tokens. Default is 24 hours.",
+    "refresh_token_expiry": 86400,
+
+    "_comment_aes_key": "AES-256 encryption key as a 64-character hex string. Used for token encryption. If empty, set via GATEWAY_AES_KEY environment variable or the install script will generate one.",
+    "aes_key": "",
+
+    "_comment_log_level": "Logging verbosity. Options: debug, info, warning, error, fatal.",
+    "log_level": "info",
+
+    "_comment_backend_timeout": "Timeout (in milliseconds) for forwarding requests to backend services. Default is 30 seconds.",
+    "backend_timeout": 30000
+}

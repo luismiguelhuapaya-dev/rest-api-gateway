@@ -1,0 +1,40 @@
+[Unit]
+Description=Dynamic REST API Gateway Server
+Documentation=file:///opt/rest-api-gateway/share/doc/README.md
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gateway
+Group=gateway
+
+# Binary and configuration
+ExecStart=/opt/rest-api-gateway/bin/rest-api-gateway --config /opt/rest-api-gateway/etc/gateway.json --log-file /opt/rest-api-gateway/logs/gateway.log --no-log-stdout
+WorkingDirectory=/opt/rest-api-gateway
+
+# Restart behavior
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/rest-api-gateway/logs /opt/rest-api-gateway/run
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Environment
+Environment=GATEWAY_AES_KEY=
+EnvironmentFile=-/opt/rest-api-gateway/etc/gateway.env
+
+# Runtime directory
+RuntimeDirectory=rest-api-gateway
+RuntimeDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target
