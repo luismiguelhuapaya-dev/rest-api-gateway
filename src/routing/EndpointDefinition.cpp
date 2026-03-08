@@ -57,8 +57,7 @@ namespace Gateway
         bool bResult = false;
 
         if ((!m_szPath.empty()) &&
-            (m_eMethod != HttpMethod::Unknown) &&
-            (!m_szBackendIdentifier.empty()))
+            (m_eMethod != HttpMethod::Unknown))
         {
             bResult = true;
         }
@@ -192,11 +191,6 @@ namespace Gateway
                 {
                     std::string szMethod = sRoot.GetMember("method").GetString();
                     sBuilder.SetMethod(StringToHttpMethod(szMethod));
-                }
-
-                if (sRoot.HasMember("backend"))
-                {
-                    sBuilder.SetBackendIdentifier(sRoot.GetMember("backend").GetString());
                 }
 
                 if (sRoot.HasMember("description"))

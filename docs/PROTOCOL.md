@@ -104,7 +104,6 @@ Backend                                    Gateway
             "path": "<string: URL path pattern, e.g. /api/users/{id}>",
             "method": "<string: HTTP method, e.g. GET, POST, PUT, DELETE>",
             "description": "<string: optional human-readable description>",
-            "backend": "<string: optional, overridden by backend_id>",
             "requires_auth": "<boolean: whether this endpoint requires authentication>",
             "parameters": [
                 {
